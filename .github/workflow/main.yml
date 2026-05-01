@@ -1,0 +1,76 @@
+name: Project Automation CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # --- 1. CONTINUOUS INTEGRATION (CI) ---
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install # Validates package.json[cite: 10]
+
+      - name: Lint Code
+        run: npx eslint . # Catches bugs in index.js and screens[cite: 8]
+
+      - name: Verify Expo Config
+        run: npx expo lint # Checks app.json
+
+  # --- 2. CONTINUOUS DEPLOYMENT (CD) ---
+  deploy-to-expo:
+    needs: build-and-test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish OTA Update
+        run: npx expo publish # Deploys updates to HomeScreen.js and Forecast.js[cite: 5, 7]
+
+  # --- 3. AUTOMATION TASKS ---
+  repo-management:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto Label Issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.payload.issue) {
+              github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ['FYP-Task']
+              })
+            }
+
+      - name: Auto-Assign Reviewer
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addAssignees({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              assignees: [context.payload.repository.owner.login]
+            })
